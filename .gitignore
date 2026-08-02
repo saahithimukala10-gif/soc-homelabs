@@ -1,0 +1,29 @@
+# Personal planning docs — never publish
+CONTEXT.md
+PROGRESS.md
+_planning/
+
+# Secrets — never commit
+wazuh-install-files*
+*passwords*.txt
+*.pem
+*.key
+.env
+
+# Large binaries
+*.iso
+*.qcow2
+*.vmdk
+*.tar
+*.tar.gz
+*.zip
+
+# Local-only scratch
+scratch/
+private-notes/
+
+# OS and editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
