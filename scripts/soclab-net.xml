@@ -1,0 +1,6 @@
+<network>
+  <name>soclab</name>
+  <bridge name='virbr-soc' stp='on' delay='0'/>
+  <ip address='10.10.10.1' netmask='255.255.255.0'>
+  </ip>
+</network>
