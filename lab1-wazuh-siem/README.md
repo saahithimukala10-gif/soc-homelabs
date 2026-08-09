@@ -10,7 +10,7 @@ external hosts.
 ## Environment
 
 | Component | Detail |
-|---|---|
+| --- | --- |
 | Host | Kali Linux, AMD Ryzen 7 260, 16 GB physical / 14 GB visible |
 | Hypervisor | KVM/QEMU + libvirt |
 | Lab network | `soclab`, bridge `virbr-soc`, `10.10.10.0/24`, isolated |
@@ -182,7 +182,7 @@ a binding problem from a network problem.
 ## Validation
 
 | Check | Result |
-|---|---|
+| --- | --- |
 | `soclab` active, no `<forward>` element | Pass |
 | `virbr-soc` holds `10.10.10.1/24` | Pass |
 | VM reachable at `10.10.10.10` over SSH | Pass |
@@ -195,19 +195,17 @@ a binding problem from a network problem.
 ## Snapshots
 
 | Name | State captured |
-|---|---|
+| --- | --- |
 | `ubuntu-clean` | Ubuntu installed, static IP, SSH, pre-Wazuh |
 | `wazuh-baseline` | Wazuh configured, VD disabled, retention set, NAT detached |
 
 Both were taken from a clean shutdown rather than a running VM, so they capture
 disk state only and are correspondingly small and quick to revert.
 
-
-
 ## Endpoint: Windows 11 victim
 
 | Property | Value |
-|---|---|
+| --- | --- |
 | OS | Windows 11 Enterprise Evaluation, 25H2 (build 26200.8973) |
 | Address | `10.10.10.30/24`, no gateway |
 | Resources | 4 GB RAM, 60 GB disk, 2 vCPU |
@@ -245,7 +243,7 @@ before moving on.
 The default policy on this build was measured before changing anything:
 
 | Subcategory | Default state |
-|---|---|
+| --- | --- |
 | Logon | Success and Failure |
 | Special Logon | Success |
 | User Account Management | Success |
@@ -342,7 +340,7 @@ separately by generating a known event on the endpoint and locating it in the
 indexer.
 
 | Source | Reaches indexer | Alerts on default ruleset |
-|---|---|---|
+| --- | --- | --- |
 | Sysmon EID 1 (process create) | Yes | Yes |
 | Security 4688 with command line | Yes | Yes |
 | Security 4720 / 4722 / 4726 (account management) | Yes | Yes |
@@ -456,8 +454,147 @@ residue from an earlier run.
 
 ---
 
+## Detection validation with Atomic Red Team
+
+Three ATT&CK techniques were executed against the instrumented endpoint as
+ground truth, to measure what Wazuh's default ruleset detects out of the box.
+Each was run from the `clean-baseline` snapshot and reverted afterward, so every
+result reflects the technique under test rather than residue from a prior run.
+
+Atomic Red Team, its execution framework, and the `powershell-yaml` dependency
+were delivered to the isolated endpoint over the host HTTP file server, since
+the victim has no internet route. This is the same constraint a real air-gapped
+environment imposes.
+
+### Results summary
+
+| Technique | Tactic | Result | Data source | Gap type |
+| --- | --- | --- | --- | --- |
+| T1059.001 PowerShell (encoded command) | Execution | **Detected** | Sysmon EID 1 / 4688 command line | — |
+| T1053.005 Scheduled Task | Persistence | **Not detected** | schtasks.exe reaches indexer | Rule |
+| T1003.001 LSASS Memory (comsvcs) | Credential Access | **Prevented, then not detected** | Defender 1116/1117; Sysmon EID 1 only | Telemetry |
+
+One clean detection, one rule gap, and one telemetry gap — three distinct
+outcomes that together define where custom work is needed in Lab 2.
+
+### T1059.001 — PowerShell encoded command (detected)
+
+Test 17 executed an encoded PowerShell command. Two rules fired:
+
+- **Rule 92057, level 12:** "Powershell.exe spawned a powershell process which
+  executed a base64 encoded command." High severity, flagged for email. Fires on
+  Sysmon EID 1, matching the `-e` / `-EncodedCommand` string in the command line
+  combined with the powershell-spawning-powershell parent-child chain.
+- **Rule 92027, level 4:** "Powershell process spawned powershell instance." A
+  generic low-severity behavioural rule.
+
+**Evasion note.** The high-severity rule depends on the literal encoded-command
+flag appearing in the command line. An attacker using `-Command` with inline
+obfuscation, or a download cradle, avoids that string and trips only the level-4
+rule, which is too noisy to be actioned. The detection is therefore
+string-dependent. A more durable rule would key on PowerShell script block
+content (EID 4104), which records the decoded payload regardless of how it was
+invoked — a candidate for Lab 2.
+
+### T1053.005 — Scheduled task (rule gap)
+
+Test 2 created a scheduled task named `spawn` with `schtasks.exe /create`. No
+rule mapped to T1053.005 fired.
+
+The `schtasks.exe` process itself reached the indexer with its full command line
+(Sysmon EID 1 / Security 4688), so the telemetry is present — the gap is that
+the default ruleset does not treat scheduled-task creation as noteworthy. This
+is a **rule gap**: the data exists, no rule acts on it.
+
+**Data-source note.** A rule matching `schtasks.exe` with `/create` would be
+brittle — tests 4 and 6 in this technique create tasks through the PowerShell
+`ScheduledTasks` cmdlets and through WMI, neither of which spawns `schtasks.exe`.
+The robust source is Windows EID 4698 (a scheduled task was registered), which
+fires regardless of the creation method and carries the task definition. Planned
+for Lab 2.
+
+### T1003.001 — LSASS memory dump (prevented, then telemetry gap)
+
+Test 2 dumps LSASS memory using `comsvcs.dll` via `rundll32` — a living-off-the-
+land technique using signed, built-in Windows components, requiring no external
+download.
+
+**With Defender enabled (default state):** the attempt was blocked at process
+start. Windows Defender operational log recorded EID 1116 (malware detected) and
+1117 (action taken) at the time of execution. No LSASS handle was opened.
+Real-time protection was on; ASR rules were not configured, so the block came
+from signature-based antivirus rather than an Attack Surface Reduction rule. On
+a protected endpoint, the endpoint's own AV is the effective control here.
+
+**With Defender disabled (to test the detection layer):** the dump executed
+successfully (exit code 0). Sysmon logged the `rundll32`/`comsvcs` process
+creation (EID 1) but produced **no EID 10 (ProcessAccess)** for the handle
+opened against `lsass.exe`. Nothing reached Wazuh to alert on.
+
+The cause is the Sysmon configuration. The SwiftOnSecurity `sysmonconfig` filters
+ProcessAccess events heavily by default, because unfiltered EID 10 is extremely
+high volume. LSASS access is not among the logged cases. This is a **telemetry
+gap**, not a rule gap: no rule can detect what the sensor is not recording.
+
+**Fix for Lab 2.** Add a targeted Sysmon ProcessAccess rule for `lsass.exe` —
+matching source images such as `rundll32.exe` and `procdump.exe` and the
+characteristic `GrantedAccess` masks (`0x1010`, `0x1410`) used to read process
+memory. This is the standard high-value LSASS-dumping detection and cannot exist
+until EID 10 logging is enabled for the target.
+
+This technique is the clearest illustration of the project's central point:
+telemetry must be verified, not assumed. The endpoint blocked the attack, and
+when that block was removed the attack succeeded silently — detection failed at
+the sensor layer, before any rule was even relevant.
+
+## Issues encountered
+
+### Atomic Red Team dependencies on an offline host
+
+**Symptom.** The execution framework failed to import (`powershell-yaml` not
+found), individual tests failed with missing helper modules, and several
+techniques could not run at all.
+
+**Cause.** The standard ART install pulls from the internet. On the isolated
+victim, the framework, the `powershell-yaml` module, and the atomics had to be
+fetched, zipped, and served from the host. The `AtomicTestHarnesses`-based tests
+(the `ATH` prefix) need an additional module that was not present. Process-
+injection tests (T1055) require downloaded payloads or Microsoft Office, neither
+available offline.
+
+**Resolution.** Delivered the framework and its dependency over the file server
+and selected only self-contained tests using built-in Windows tooling
+(`powershell.exe`, `schtasks.exe`, `comsvcs.dll`). T1055 was deferred to Lab 2,
+where a payload can be staged deliberately.
+
+**Takeaway.** An isolated lab forces the same discipline as an air-gapped
+production environment — every tool is staged and accounted for. It also
+constrains technique selection to native tooling, which is arguably more
+realistic than downloading pre-built offensive binaries.
+
+### PowerShell execution policy blocks the setup script
+
+**Symptom.** The post-revert setup script could not run — execution policy was
+`Restricted`.
+
+**Cause.** Each snapshot revert restores the baseline, where the default
+`Restricted` policy is in force. The script that sets the policy cannot itself
+run under that policy.
+
+**Resolution.** Set `RemoteSigned` for the current user manually as the first
+command after each revert, then run the script.
+
+**Detection note.** This is the same friction an attacker meets, and the common
+bypass — `powershell.exe -ExecutionPolicy Bypass` — is itself a well-known
+suspicious command-line indicator and a candidate detection for Lab 2.
+
+---
+
 ## Next
 
 Lab 2 measures out-of-box detection coverage across roughly ten ATT&CK
-techniques, identifies the gaps, and closes them with custom rules validated
-against both a positive and a negative corpus.
+techniques, then closes the identified gaps with custom rules — validated
+against both a positive corpus (the attack fires the rule) and a negative corpus
+(a benign lookalike does not). The three gaps found here seed that work: a
+scheduled-task rule keyed on EID 4698, a Sysmon ProcessAccess rule for LSASS,
+and a script-block-content rule for obfuscated PowerShell.
