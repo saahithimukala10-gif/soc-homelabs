@@ -3,7 +3,8 @@
 Back to [findings overview](README.md).
 
 ![Rule 92057 detection, expanded alert](day3-t1059-001-detected-92057.png)
-*Screenshot pending re-derivation.*
+
+![Encoded commandLine detail](day3-t1059-001-commandline-detail.png)
 
 ## Result: Detected out of the box
 
