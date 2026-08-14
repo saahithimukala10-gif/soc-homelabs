@@ -3,7 +3,6 @@
 Back to [findings overview](README.md).
 
 ![Defender EID 1116/1117 blocking the dump](day3-t1003-001-defender-block.png)
-*Screenshot pending re-derivation.*
 
 ![Sysmon EID 1 for comsvcs, no EID 10](day3-t1003-001-telemetry-gap.png)
 
@@ -14,11 +13,15 @@ land technique using signed, built-in Windows components, requiring no external
 download.
 
 **With Defender enabled (default state):** the attempt was blocked at process
-start. Windows Defender operational log recorded EID 1116 (malware detected) and
-1117 (action taken) at the time of execution. No LSASS handle was opened.
-Real-time protection was on; ASR rules were not configured, so the block came
-from signature-based antivirus rather than an Attack Surface Reduction rule. On
-a protected endpoint, the endpoint's own AV is the effective control here.
+start with `Exception calling "Start"... Access is denied` in the PowerShell
+console. Windows Defender operational log recorded EID 1116 (malware detected)
+and 1117 (action taken) at the time of execution, naming the detection
+**`Trojan:Win32/RundllLolBin.AF`** and logging the full offending command line —
+`rundll32.exe C:\windows\System32\comsvcs.dll, MiniDump (Get-Process lsass).id
+$env:TEMP\lsass-comsvcs.dmp full`. No LSASS handle was opened. Real-time
+protection was on; ASR rules were not configured, so the block came from
+signature-based antivirus rather than an Attack Surface Reduction rule. On a
+protected endpoint, the endpoint's own AV is the effective control here.
 
 **With Defender disabled (to test the detection layer):** the dump executed
 successfully (exit code 0). Sysmon logged the `rundll32`/`comsvcs` process
