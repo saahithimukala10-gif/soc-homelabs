@@ -18,7 +18,7 @@ providerName hit is a **rule gap**; no providerName hit at all is a
 | 2 | T1053.005 Scheduled Task | Persistence | Yes | No | Rule | TBD (4698) |
 | 3 | T1003.001 LSASS Memory | Credential Access | No (EID 10 filtered) | No | Telemetry | TBD |
 | 4 | T1055 Process Injection | Defense Evasion | Not yet run | — | — | — |
-| 5 | T1070.001 Clear Windows Event Logs | Defense Evasion | Not yet run | — | — | — |
+| 5 | T1070.003 Clear Command History | Defense Evasion | Not yet run | — | — | — |
 | 6 | T1547.001 Registry Run Keys | Persistence | Not yet run | — | — | — |
 | 7 | T1087.001 Local Account Discovery | Discovery | Not yet run | — | — | — |
 | 8 | T1548.002 Bypass UAC | Privilege Escalation | Not yet run | — | — | — |
@@ -28,6 +28,13 @@ providerName hit is a **rule gap**; no providerName hit at all is a
 Rows 1–3 carry over their Lab 1 results as the starting baseline. Rule IDs
 for the seeded gaps will be assigned from 100001 once written, and recorded
 here alongside the ART test number used to validate each one.
+
+**Test-plan note:** row 5 was originally T1070.001 (Clear Windows Event Logs).
+Atomic Red Team has no dedicated folder for that sub-technique — `atomics/T1070`
+turned out to be FSUtil-based indicator removal (USN journal manipulation),
+unrelated to event-log clearing. Swapped to T1070.003 (Clear Command History),
+which does have ART coverage and stays in the same Defense Evasion /
+indicator-removal family.
 
 ## Custom rules seeded from Lab 1
 
