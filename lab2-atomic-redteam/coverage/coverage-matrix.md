@@ -19,7 +19,7 @@ providerName hit is a **rule gap**; no providerName hit at all is a
 | 3 | T1003.001 LSASS Memory | Credential Access | No (EID 10 filtered) | No | Telemetry | TBD |
 | 4 | T1055 Process Injection (test 13, UUID injection) | Defense Evasion | N/A — file quarantined before execution | Prevented (Defender) | — | — |
 | 5 | T1112 Modify Registry (test 7, ExecutionPolicy Bypass) | Defense Evasion | No (Sysmon EID 13 filtered) | No | Telemetry | TBD |
-| 6 | T1547.001 Registry Run Keys | Persistence | Not yet run | — | — | — |
+| 6 | T1547.001 Registry Run Keys (test 1, Reg Key Run) | Persistence | Yes | Yes (92302) | — | — |
 | 7 | T1087.001 Local Account Discovery | Discovery | Not yet run | — | — | — |
 | 8 | T1548.002 Bypass UAC | Privilege Escalation | Not yet run | — | — | — |
 | 9 | T1490 Inhibit System Recovery | Impact | Not yet run | — | — | — |
@@ -61,6 +61,14 @@ download, `False` moments later) — the technique never got to execute.
 Same story shape as T1003.001: signature AV caught it before Wazuh telemetry
 was ever relevant. Recorded as "Prevented," not benchmarked against Wazuh,
 since there's nothing for Wazuh to have seen.
+
+**T1547.001 test 1 finding:** `REG ADD` on the `Run` key detected out of the box
+— rule 92302, level 6, correctly mapped to `rule.mitre.id: T1547.001`. Useful
+contrast with the T1112 telemetry gap directly above it: both are Sysmon EID 13
+registry writes, but `Run` keys are squarely inside SwiftOnSecurity's allowlist
+(rule group `sysmon_eid13_detections`) while the PowerShell `ExecutionPolicy`
+value isn't. Confirms the allowlist is deliberately scoped to well-known
+persistence locations, not a blanket exclusion of most registry paths.
 
 ## Custom rules seeded from Lab 1
 
