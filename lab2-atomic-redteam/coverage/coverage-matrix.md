@@ -29,7 +29,7 @@ providerName hit is a **rule gap**; no providerName hit at all is a
 | 4 | T1055 Process Injection (test 13, UUID injection) | Defense Evasion | N/A — file quarantined before execution | Prevented (Defender) | — | — |
 | 5 | T1112 Modify Registry (test 7, ExecutionPolicy Bypass) | Defense Evasion | No (Sysmon EID 13 filtered) | No | Telemetry | TBD |
 | 6 | T1547.001 Registry Run Keys (test 1, Reg Key Run) | Persistence | Yes | Yes (92302) | — | — |
-| 7 | T1087.001 Local Account Discovery | Discovery | Not yet run | — | — | — |
+| 7 | T1087.001 Local Account Discovery (test 8) | Discovery | Yes | No (generic noise only) | Rule | TBD |
 | 8 | T1548.002 Bypass UAC | Privilege Escalation | Not yet run | — | — | — |
 | 9 | T1490 Inhibit System Recovery | Impact | Not yet run | — | — | — |
 | 10 | T1113 Screen Capture | Collection | Not yet run | — | — | — |
@@ -79,6 +79,17 @@ registry writes, but `Run` keys are squarely inside SwiftOnSecurity's allowlist
 value isn't. Confirms the allowlist is deliberately scoped to well-known
 persistence locations, not a blanket exclusion of most registry paths.
 
+**T1087.001 test 8 finding:** `net user`, `dir c:\Users\`, `cmdkey /list`, `net
+localgroup` all ran and reached the indexer, but the only rule that fired was
+92032 "Suspicious Windows cmd shell execution," level 3 — the identical rule
+that fired for T1053.005 in Lab 1, with the identical static
+`rule.mitre.id: T1087, T1059.003` tag, despite entirely different commands.
+That's strong evidence 92032 pattern-matches on the cmd-spawned-from-cmd
+process chain generically and carries a fixed mitre tag, rather than actually
+analyzing command content for discovery behavior. Treated consistently with
+the T1053.005 precedent: **rule gap**, not a genuine detection, even though the
+mitre tag happens to say "T1087."
+
 ## Custom rules seeded from Lab 1
 
 1. EID 4698 (scheduled task registered) — method-agnostic, closes the
@@ -98,3 +109,7 @@ persistence locations, not a blanket exclusion of most registry paths.
    telemetry-before-rule sequencing as the LSASS fix), then write the rule.
    Registry-based counterpart to item 4 above — catches the technique whether
    an attacker uses the CLI flag or a direct registry write.
+6. Local account/group enumeration rule — key on the specific commands
+   (`net user`, `net localgroup`, `cmdkey /list`) rather than the generic
+   cmd-spawned-cmd pattern rule 92032 relies on, so it's not drowned out by
+   that rule's noise on unrelated cmd chains.
