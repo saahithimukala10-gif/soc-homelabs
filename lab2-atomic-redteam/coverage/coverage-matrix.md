@@ -1,6 +1,9 @@
-# Lab 2 — Coverage Matrix (v1, in progress)
+# Lab 2 — Coverage Matrix (v1, complete)
 
 Back to [Lab 2](../README.md).
+
+**Result: 2 detected OOB → 7 gaps (5 rule, 2 telemetry) → 1 prevented before
+relevant → target 10/10 after Days 7–8 custom rules.**
 
 Out-of-box detection coverage across the ten-technique test plan, measured
 before any custom rules are written. Each row is filled in only after the
@@ -32,7 +35,7 @@ providerName hit is a **rule gap**; no providerName hit at all is a
 | 7 | T1087.001 Local Account Discovery (test 8) | Discovery | Yes | No (generic noise only) | Rule | TBD |
 | 8 | T1548.002 Bypass UAC (test 1, Event Viewer) | Privilege Escalation | Yes | No | Rule | TBD |
 | 9 | T1490 Inhibit System Recovery (test 1, vssadmin) | Impact | Yes | No (generic noise only) | Rule | TBD |
-| 10 | T1113 Screen Capture | Collection | Not yet run | — | — | — |
+| 10 | T1113 Screen Capture (test 7, psr.exe) | Collection | Yes | No (generic noise only) | Rule | TBD |
 
 Rows 1–3 carry over their Lab 1 results as the starting baseline. Rule IDs
 for the seeded gaps will be assigned from 100001 once written, and recorded
@@ -117,6 +120,28 @@ shadows` is arguably the single highest-value ransomware-precursor indicator in
 this test plan, and it gets zero specific detection — same rule gap pattern,
 highest-stakes example of it yet.
 
+**T1113 test 7 finding:** `psr.exe` (Windows Problem Steps Recorder, a signed
+built-in LOLBin) invoked via `cmd /c start /b psr.exe /start ...` to record a
+screen capture. Rule 92032 fired again — **fourth occurrence**, same static
+`T1087, T1059.003` tag, now spanning four unrelated tactics (Persistence,
+Discovery, Impact, Collection). No rule anywhere in the default set actually
+recognizes `psr.exe`, a documented and fairly well-known LOLBin for this
+technique.
+
+### Systemic finding: rule 92032 is not a real detection
+
+Across this coverage pass, rule 92032 ("Suspicious Windows cmd shell
+execution," level 3) fired identically for **T1053.005, T1087.001, T1490, and
+T1113** — four completely unrelated techniques — always with the exact same
+static `rule.mitre.id: T1087, T1059.003`. It's a broad pattern match on
+cmd-spawned-from-cmd process chains with a hardcoded mitre tag baked into the
+rule definition, not an actual per-command classification. Anyone trusting
+`rule.mitre.id` at face value here would misattribute all four techniques as
+"Account Discovery" or "Windows Command Shell." This is a headline finding for
+the Lab 2 writeup: **a rule that fires isn't the same as a rule that detects,
+and an auto-tagged MITRE ID isn't ground truth** — the raw commandLine has to
+be inspected regardless of what the rule claims.
+
 ## Custom rules seeded from Lab 1
 
 1. EID 4698 (scheduled task registered) — method-agnostic, closes the
@@ -152,3 +177,10 @@ highest-stakes example of it yet.
    (`vssadmin.*delete.*shadows`, plus the WMI/`wbadmin`/`diskshadow`
    equivalents from the other tests in this technique folder) rather than
    relying on generic process-chain rules like 92032.
+9. `psr.exe` LOLBin rule — key on `psr.exe /start` in the commandLine, a fairly
+   narrow and reliable signature since legitimate use of Problem Steps
+   Recorder is rare.
+10. Re-tune or replace rule 92032 itself — its static mitre tagging is actively
+    misleading (see "Systemic finding" above). Either narrow its match
+    conditions so it stops firing on unrelated techniques, or strip the
+    mitre.id mapping so it can't be mistaken for a specific detection.
