@@ -4,7 +4,16 @@ Back to [Lab 2](../README.md).
 
 Out-of-box detection coverage across the ten-technique test plan, measured
 before any custom rules are written. Each row is filled in only after the
-technique has actually been run from a clean snapshot — no assumptions.
+technique has actually been run — no assumptions.
+
+**Methodology shortcut, this pass only:** techniques 4 onward were run in a
+single session without a full VM revert between each one, to fit ten
+techniques in one sitting. Each result is confirmed by querying for that
+technique's specific artifact (a targetObject, a rule ID), not by absence of
+other noise, so residue shouldn't invalidate a result — but this is looser
+than the per-technique revert discipline used for techniques 1–3 and for the
+paired TP/FP validation in Days 7–8, where a fresh revert per test matters
+much more.
 
 **Method:** query `data.win.system.providerName` first to confirm the channel
 is collected, then `data.win.system.eventID` / `rule.mitre.id` in
