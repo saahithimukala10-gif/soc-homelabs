@@ -31,7 +31,7 @@ providerName hit is a **rule gap**; no providerName hit at all is a
 | 6 | T1547.001 Registry Run Keys (test 1, Reg Key Run) | Persistence | Yes | Yes (92302) | — | — |
 | 7 | T1087.001 Local Account Discovery (test 8) | Discovery | Yes | No (generic noise only) | Rule | TBD |
 | 8 | T1548.002 Bypass UAC (test 1, Event Viewer) | Privilege Escalation | Yes | No | Rule | TBD |
-| 9 | T1490 Inhibit System Recovery | Impact | Not yet run | — | — | — |
+| 9 | T1490 Inhibit System Recovery (test 1, vssadmin) | Impact | Yes | No (generic noise only) | Rule | TBD |
 | 10 | T1113 Screen Capture | Collection | Not yet run | — | — | — |
 
 Rows 1–3 carry over their Lab 1 results as the starting baseline. Rule IDs
@@ -104,6 +104,19 @@ fine — the default ruleset just has nothing watching for this pattern. Strong
 candidate for a flagship Lab 2 finding alongside the LSASS gap: a full,
 successful privilege-escalation chain, invisible end to end.
 
+**T1490 test 1 finding:** `vssadmin.exe delete shadows /all /quiet` — no shadow
+copies existed on this Win11 client, so the command exited 1 with "No items
+found," but the process still ran and reached the indexer. Rule 92032 fired
+again — **third occurrence** of this exact rule with the exact same static
+`rule.mitre.id: T1087, T1059.003` tag, now across three completely unrelated
+techniques (T1053.005 scheduled task, T1087.001 account discovery, T1490 shadow
+copy deletion). This is no longer a one-off observation: 92032's mitre tag is
+static metadata on the rule definition, not derived from the actual command,
+and cannot be trusted to identify what technique occurred. `vssadmin delete
+shadows` is arguably the single highest-value ransomware-precursor indicator in
+this test plan, and it gets zero specific detection — same rule gap pattern,
+highest-stakes example of it yet.
+
 ## Custom rules seeded from Lab 1
 
 1. EID 4698 (scheduled task registered) — method-agnostic, closes the
@@ -134,3 +147,8 @@ successful privilege-escalation chain, invisible end to end.
    reaching `IntegrityLevel: High` whose direct parent chain includes one of
    those known auto-elevate binaries, since that catches new hijack variants
    without needing a rule per registry key.
+8. `vssadmin`/shadow-copy-deletion rule — high priority given this is a direct
+   ransomware precursor. Key on the specific commandLine pattern
+   (`vssadmin.*delete.*shadows`, plus the WMI/`wbadmin`/`diskshadow`
+   equivalents from the other tests in this technique folder) rather than
+   relying on generic process-chain rules like 92032.
