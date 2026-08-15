@@ -30,7 +30,7 @@ providerName hit is a **rule gap**; no providerName hit at all is a
 | 5 | T1112 Modify Registry (test 7, ExecutionPolicy Bypass) | Defense Evasion | No (Sysmon EID 13 filtered) | No | Telemetry | TBD |
 | 6 | T1547.001 Registry Run Keys (test 1, Reg Key Run) | Persistence | Yes | Yes (92302) | — | — |
 | 7 | T1087.001 Local Account Discovery (test 8) | Discovery | Yes | No (generic noise only) | Rule | TBD |
-| 8 | T1548.002 Bypass UAC | Privilege Escalation | Not yet run | — | — | — |
+| 8 | T1548.002 Bypass UAC (test 1, Event Viewer) | Privilege Escalation | Yes | No | Rule | TBD |
 | 9 | T1490 Inhibit System Recovery | Impact | Not yet run | — | — | — |
 | 10 | T1113 Screen Capture | Collection | Not yet run | — | — | — |
 
@@ -90,6 +90,20 @@ analyzing command content for discovery behavior. Treated consistently with
 the T1053.005 precedent: **rule gap**, not a genuine detection, even though the
 mitre tag happens to say "T1087."
 
+**T1548.002 test 1 finding:** the classic `eventvwr.exe`/`mscfile` fileless UAC
+bypass. `wazuh-alerts-*` had 0 hits for both the registry write
+(`targetObject:*mscfile*`) and the resulting process chain
+(`parentImage:*eventvwr*`). Checked the local Sysmon log directly — full chain
+present: EID 13 registry write (`RuleName: T1042`) to
+`mscfile\shell\open\command`, then `reg.exe` → `cmd.exe /c eventvwr.msc` →
+`cmd.exe`, with the **final `cmd.exe` at `IntegrityLevel: High`** — direct proof
+the bypass actually elevated without a consent prompt. Confirmed this is a rule
+gap and not a collection problem: the same agent had a genuine Sysmon-sourced
+alert (rule 92302, T1547.001) fire minutes earlier, so the channel is flowing
+fine — the default ruleset just has nothing watching for this pattern. Strong
+candidate for a flagship Lab 2 finding alongside the LSASS gap: a full,
+successful privilege-escalation chain, invisible end to end.
+
 ## Custom rules seeded from Lab 1
 
 1. EID 4698 (scheduled task registered) — method-agnostic, closes the
@@ -113,3 +127,10 @@ mitre tag happens to say "T1087."
    (`net user`, `net localgroup`, `cmdkey /list`) rather than the generic
    cmd-spawned-cmd pattern rule 92032 relies on, so it's not drowned out by
    that rule's noise on unrelated cmd chains.
+7. UAC-bypass registry-hijack rule — key on well-known auto-elevating binaries'
+   associated registry paths (`mscfile\shell\open\command` for `eventvwr.exe`;
+   similar hijack points exist for `fodhelper.exe`, `computerdefaults.exe`,
+   `sdclt.exe`). More durable alternative/companion: alert on a process
+   reaching `IntegrityLevel: High` whose direct parent chain includes one of
+   those known auto-elevate binaries, since that catches new hijack variants
+   without needing a rule per registry key.
