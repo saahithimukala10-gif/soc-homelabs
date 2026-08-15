@@ -17,7 +17,7 @@ providerName hit is a **rule gap**; no providerName hit at all is a
 | 1 | T1059.001 PowerShell (encoded command) | Execution | Yes | Yes (92057) | — | — |
 | 2 | T1053.005 Scheduled Task | Persistence | Yes | No | Rule | TBD (4698) |
 | 3 | T1003.001 LSASS Memory | Credential Access | No (EID 10 filtered) | No | Telemetry | TBD |
-| 4 | T1055 Process Injection | Defense Evasion | Not yet run | — | — | — |
+| 4 | T1055 Process Injection (test 13, UUID injection) | Defense Evasion | N/A — file quarantined before execution | Prevented (Defender) | — | — |
 | 5 | T1070.003 Clear Command History | Defense Evasion | Not yet run | — | — | — |
 | 6 | T1547.001 Registry Run Keys | Persistence | Not yet run | — | — | — |
 | 7 | T1087.001 Local Account Discovery | Discovery | Not yet run | — | — | — |
@@ -35,6 +35,17 @@ turned out to be FSUtil-based indicator removal (USN journal manipulation),
 unrelated to event-log clearing. Swapped to T1070.003 (Clear Command History),
 which does have ART coverage and stays in the same Defense Evasion /
 indicator-removal family.
+
+**T1055 note:** test 13 (UUID custom process injection) downloads a small,
+purpose-built PoC binary (`uuid_injection.exe`) from ART's own repo — the
+technique's other tests need Office (VBA) or a named credential-dumping tool
+(mimikatz), neither viable offline or appropriate to stage. Defender flagged
+the binary `Trojan:Win64/Malgent!MSR` and deleted it within seconds of it
+landing on disk (confirmed: `Test-Path` returned `True` immediately after
+download, `False` moments later) — the technique never got to execute.
+Same story shape as T1003.001: signature AV caught it before Wazuh telemetry
+was ever relevant. Recorded as "Prevented," not benchmarked against Wazuh,
+since there's nothing for Wazuh to have seen.
 
 ## Custom rules seeded from Lab 1
 
